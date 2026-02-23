@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="電卓">
+  <meta name="theme-color" content="#0f0c29">
+  <title>電卓</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:#0f0c29}
+    body{
+      font-family:-apple-system,sans-serif;
+      background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);
+      min-height:100vh;min-height:-webkit-fill-available;
+      display:flex;align-items:center;justify-content:center;
+      padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      -webkit-tap-highlight-color:transparent;
+      user-select:none;-webkit-user-select:none;
+    }
+    #root{width:100%;display:flex;align-items:center;justify-content:center}
+    .calc{
+      width:min(96vw,400px);border-radius:28px;
+      background:rgba(0,0,0,0.62);
+      backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);
+      border:1px solid rgba(255,255,255,0.08);
+      box-shadow:0 24px 70px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.1);
+      padding:16px 14px 14px;
+    }
+    .display-area{
+      background:rgba(255,255,255,0.03);border-radius:18px;
+      border:1px solid rgba(255,255,255,0.05);margin-bottom:10px;overflow:hidden;
+    }
+    .indicators{display:flex;justify-content:space-between;align-items:center;padding:8px 12px 0;min-height:20px}
+    .mem-indicator{display:flex;align-items:center;gap:5px}
+    .mem-dot{width:6px;height:6px;border-radius:50%;background:rgba(80,200,255,0.95);box-shadow:0 0 8px rgba(80,200,255,0.9);display:none}
+    .mem-label{font-size:11px;font-weight:600;letter-spacing:1px;color:rgba(80,200,255,0.95);display:none}
+    .mem-val{font-size:11px;color:rgba(255,255,255,0.4);font-weight:300;display:none}
+    .paren-ind{font-size:11px;color:rgba(180,210,255,0.8);letter-spacing:1px;min-width:20px;text-align:right}
+    .history{height:110px;overflow-y:auto;padding:4px 12px 2px;scrollbar-width:none}
+    .history::-webkit-scrollbar{display:none}
+    .hist-empty{height:100%;display:flex;align-items:center;justify-content:flex-end;color:rgba(255,255,255,0.12);font-size:12px;font-style:italic}
+    .hist-item{text-align:right;margin-bottom:6px}
+    .hist-expr{font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:1px;word-break:break-all}
+    .hist-res{font-size:18px;color:#fff;font-weight:200;letter-spacing:-0.5px}
+    .divider{height:1px;background:rgba(255,255,255,0.06);margin:0 12px}
+    .cur-expr{text-align:right;color:rgba(255,255,255,0.38);font-size:12px;min-height:20px;padding:4px 12px 0;word-break:break-all;line-height:1.4}
+    .main-disp{text-align:right;color:#fff;font-weight:200;letter-spacing:-2px;padding:2px 12px 14px;line-height:1.1;word-break:break-all;transition:background 0.15s}
+    .flash-s{background:rgba(80,220,140,0.25)}
+    .flash-r{background:rgba(80,160,255,0.25)}
+    .flash-c{background:rgba(255,90,90,0.25)}
+    button{border:none;outline:none;cursor:pointer;border-radius:999px;font-family:inherit;transition:transform 0.08s,opacity 0.08s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+    button:active{transform:scale(0.92);opacity:0.8}
+    .mem-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.07)}
+    .mbtn{height:38px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.55);font-size:12px;font-weight:500;letter-spacing:0.5px;border:1px solid rgba(255,255,255,0.07)}
+    .mbtn.active-r{background:rgba(80,160,255,0.18);color:rgba(130,195,255,1)}
+    .mbtn.active-c{background:rgba(255,70,70,0.15);color:rgba(255,130,130,1)}
+    .btn-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+    .btn{height:58px;font-size:20px;font-weight:300;background:rgba(255,255,255,0.12);color:#fff}
+    .op{background:rgba(255,149,0,0.85);font-size:22px;box-shadow:0 3px 14px rgba(255,149,0,0.3)}
+    .eq{background:rgba(255,149,0,0.85);font-size:24px;box-shadow:0 3px 14px rgba(255,149,0,0.3);grid-column:span 3}
+    .ac{background:rgba(255,65,65,0.22);color:rgba(255,120,120,1);font-size:13px;font-weight:600}
+    .cc{background:rgba(255,190,60,0.2);color:rgba(255,210,100,1);font-size:13px;font-weight:600}
+    .bs{background:rgba(180,120,255,0.18);color:rgba(200,160,255,1);font-size:17px}
+    .par{background:rgba(255,255,255,0.08);color:rgba(180,210,255,0.9);font-size:20px;font-weight:400}
+    .fn{background:rgba(255,255,255,0.14);font-size:13px;font-weight:500}
+  </style>
+</head>
+<body>
+<div id="root">
+  <div class="calc">
+    <div class="display-area">
+      <div class="indicators">
+        <div class="mem-indicator">
+          <span class="mem-dot" id="mDot"></span>
+          <span class="mem-label" id="mLabel">M</span>
+          <span class="mem-val" id="mVal"></span>
+        </div>
+        <div class="paren-ind" id="pInd"></div>
+      </div>
+      <div class="history" id="hist">
+        <div class="hist-empty" id="histEmpty">履歴なし</div>
+      </div>
+      <div class="divider"></div>
+      <div class="cur-expr" id="curExpr">&nbsp;</div>
+      <div class="main-disp" id="mainDisp" style="font-size:56px">0</div>
+    </div>
+    <div class="mem-row">
+      <button class="mbtn" id="btnMC" onclick="doMem('MC')">MC</button>
+      <button class="mbtn" id="btnMR" onclick="doMem('MR')">MR</button>
+      <button class="mbtn" onclick="doMem('MS')">M&minus;</button>
+      <button class="mbtn" onclick="doMem('MA')">M+</button>
+    </div>
+    <div class="btn-grid">
+      <button class="btn ac"  onclick="doBtn('AC')">AC</button>
+      <button class="btn cc"  onclick="doBtn('C')">C</button>
+      <button class="btn par" onclick="doBtn('LP')">(</button>
+      <button class="btn par" onclick="doBtn('RP')">)</button>
+      <button class="btn bs"  onclick="doBtn('BS')">&#x232b;</button>
+      <button class="btn" onclick="doBtn('7')">7</button>
+      <button class="btn" onclick="doBtn('8')">8</button>
+      <button class="btn" onclick="doBtn('9')">9</button>
+      <button class="btn fn" onclick="doBtn('PM')">+/-</button>
+      <button class="btn fn" onclick="doBtn('PCT')">%</button>
+      <button class="btn" onclick="doBtn('4')">4</button>
+      <button class="btn" onclick="doBtn('5')">5</button>
+      <button class="btn" onclick="doBtn('6')">6</button>
+      <button class="btn op" onclick="doBtn('MUL')">&#xd7;</button>
+      <button class="btn op" onclick="doBtn('DIV')">&#xf7;</button>
+      <button class="btn" onclick="doBtn('1')">1</button>
+      <button class="btn" onclick="doBtn('2')">2</button>
+      <button class="btn" onclick="doBtn('3')">3</button>
+      <button class="btn op" onclick="doBtn('ADD')">+</button>
+      <button class="btn op" onclick="doBtn('SUB')">&minus;</button>
+      <button class="btn" onclick="doBtn('0')">0</button>
+      <button class="btn" onclick="doBtn('DOT')">.</button>
+      <button class="btn eq" onclick="doBtn('EQ')">=</button>
+    </div>
+  </div>
+</div>
+<script>
+var gExpr = '';
+var gDisp = '0';
+var gJustEvaled = false;
+var gHistory = [];
+var gMemory = 0;
+var gLastOp = null;   // = 連打用：{op: '+', val: 5} など
+var gLastResult = null;
+
+var RE_LAST_NUM = /(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)$/;
+
+function prettyExpr(s) {
+  var result = '';
+  var i = 0;
+  while (i < s.length) {
+    var c = s.charAt(i);
+    if (c === '*') { result += '\u00d7'; i++; continue; }
+    if (c === '/') { result += '\u00f7'; i++; continue; }
+    if (c === '-') {
+      var prev = '';
+      for (var j = result.length - 1; j >= 0; j--) {
+        if (result.charAt(j) !== ' ') { prev = result.charAt(j); break; }
+      }
+      if ((prev >= '0' && prev <= '9') || prev === ')') {
+        result += '\u2212'; i++; continue;
+      }
+    }
+    result += c; i++;
+  }
+  return result;
+}
+
+function withCommas(s) {
+  if (!s) return s;
+  if (s === 'Error' || s === '\u221e' || s === '-\u221e') return s;
+  if (/[eE]/.test(s)) return s;
+  if (!/^-?[\d.]+$/.test(s)) return s;
+  var neg = s.charAt(0) === '-';
+  var t = neg ? s.slice(1) : s;
+  var dot = t.indexOf('.');
+  var intPart = dot >= 0 ? t.slice(0, dot) : t;
+  var decPart = dot >= 0 ? t.slice(dot) : '';
+  var r = '';
+  for (var i = 0; i < intPart.length; i++) {
+    if (i > 0 && (intPart.length - i) % 3 === 0) r += ',';
+    r += intPart.charAt(i);
+  }
+  return (neg ? '-' : '') + r + decPart;
+}
+
+function fmtNum(n) {
+  if (n === null || n === undefined || isNaN(n)) return 'Error';
+  if (!isFinite(n)) return n > 0 ? '\u221e' : '-\u221e';
+  var a = Math.abs(n);
+  var d = a < 1 ? 1 : Math.floor(Math.log10(a)) + 1;
+  if (d > 15) return n.toExponential(4);
+  if (n === Math.floor(n)) return String(n);
+  var dp = Math.max(0, 14 - d);
+  return n.toFixed(dp).replace(/\.?0+$/, '');
+}
+
+function calcEval(s) {
+  var toks = [];
+  var i = 0;
+  function isDigit(ch) { return ch >= '0' && ch <= '9'; }
+  while (i < s.length) {
+    var c = s.charAt(i);
+    if (c === ' ') { i++; continue; }
+    if (isDigit(c) || c === '.') {
+      var start = i;
+      var hasDot = false;
+      if (c === '.') {
+        hasDot = true; i++;
+        if (i >= s.length || !isDigit(s.charAt(i))) return null;
+      } else { i++; }
+      while (i < s.length) {
+        var ch = s.charAt(i);
+        if (isDigit(ch)) { i++; continue; }
+        if (ch === '.' && !hasDot) { hasDot = true; i++; continue; }
+        break;
+      }
+      if (i < s.length && (s.charAt(i) === 'e' || s.charAt(i) === 'E')) {
+        var j = i + 1;
+        if (j < s.length && (s.charAt(j) === '+' || s.charAt(j) === '-')) j++;
+        var k = j;
+        while (k < s.length && isDigit(s.charAt(k))) k++;
+        if (k === j) return null;
+        i = k;
+      }
+      var v = Number(s.slice(start, i));
+      if (!isFinite(v)) return null;
+      toks.push({ t: 'n', v: v });
+      continue;
+    }
+    if (c === '+' || c === '-' || c === '*' || c === '/') { toks.push({ t: 'o', v: c }); i++; continue; }
+    if (c === '(') { toks.push({ t: 'l' }); i++; continue; }
+    if (c === ')') { toks.push({ t: 'r' }); i++; continue; }
+    return null;
+  }
+  if (toks.length === 0) return null;
+  var pos = 0;
+  function peek() { return toks[pos]; }
+  function eat() { return toks[pos++]; }
+  function parseExpr() { return parseAdd(); }
+  function parseAdd() {
+    var left = parseMul();
+    while (peek() && peek().t === 'o' && (peek().v === '+' || peek().v === '-')) {
+      var op = eat().v; var right = parseMul();
+      left = (op === '+') ? left + right : left - right;
+    }
+    return left;
+  }
+  function parseMul() {
+    var left = parseUnary();
+    while (peek() && peek().t === 'o' && (peek().v === '*' || peek().v === '/')) {
+      var op = eat().v; var right = parseUnary();
+      left = (op === '*') ? left * right : (right !== 0 ? left / right : NaN);
+    }
+    return left;
+  }
+  function parseUnary() {
+    if (peek() && peek().t === 'o' && peek().v === '-') { eat(); return -parsePrimary(); }
+    if (peek() && peek().t === 'o' && peek().v === '+') { eat(); return parsePrimary(); }
+    return parsePrimary();
+  }
+  function parsePrimary() {
+    var t = peek();
+    if (!t) return NaN;
+    if (t.t === 'n') { eat(); return t.v; }
+    if (t.t === 'l') {
+      eat(); var v = parseExpr();
+      if (!peek() || peek().t !== 'r') return NaN;
+      eat(); return v;
+    }
+    return NaN;
+  }
+  var result = parseExpr();
+  if (pos !== toks.length) return null;
+  if (isNaN(result)) return null;
+  if (!isFinite(result)) return null;
+  return result;
+}
+
+function unclosed(s) {
+  var c = 0;
+  for (var i = 0; i < s.length; i++) {
+    if (s.charAt(i) === '(') c++;
+    else if (s.charAt(i) === ')') c--;
+    if (c < 0) return -1;
+  }
+  return c;
+}
+
+function lastCh(s) { return s.length ? s.charAt(s.length - 1) : ''; }
+function isOpAscii(c) { return c === '+' || c === '-' || c === '*' || c === '/'; }
+
+function render() {
+  var dText = (gDisp !== '') ? gDisp : (gExpr === '' ? '0' : '');
+  if (dText === '*') dText = '\u00d7';
+  else if (dText === '/') dText = '\u00f7';
+  else if (dText === '-') dText = '\u2212';
+  var dShow = (dText === 'Error' || dText === '\u221e' || dText === '-\u221e') ? dText : withCommas(dText);
+  var len = dShow.length;
+  var fs = len > 14 ? 18 : len > 11 ? 24 : len > 8 ? 36 : len > 5 ? 46 : 56;
+  var md = document.getElementById('mainDisp');
+  md.textContent = dShow;
+  md.style.fontSize = fs + 'px';
+  document.getElementById('curExpr').textContent = gExpr ? prettyExpr(gExpr) : '\u00a0';
+  var u = unclosed(gExpr);
+  document.getElementById('pInd').textContent = (u > 0) ? '('.repeat(u > 4 ? 4 : u) : (u < 0 ? '!' : '');
+  var hasM = gMemory !== 0;
+  document.getElementById('mDot').style.display = hasM ? 'inline-block' : 'none';
+  document.getElementById('mLabel').style.display = hasM ? 'inline' : 'none';
+  document.getElementById('mVal').style.display = hasM ? 'inline' : 'none';
+  if (hasM) document.getElementById('mVal').textContent = '= ' + withCommas(fmtNum(gMemory));
+  document.getElementById('btnMR').className = 'mbtn' + (hasM ? ' active-r' : '');
+  document.getElementById('btnMC').className = 'mbtn' + (hasM ? ' active-c' : '');
+  var histEl = document.getElementById('hist');
+  var emptyEl = document.getElementById('histEmpty');
+  var items = histEl.getElementsByClassName('hist-item');
+  while (items.length > 0) items[0].parentNode.removeChild(items[0]);
+  if (gHistory.length === 0) {
+    emptyEl.style.display = 'flex';
+  } else {
+    emptyEl.style.display = 'none';
+    for (var i = 0; i < gHistory.length; i++) {
+      var div = document.createElement('div');
+      div.className = 'hist-item';
+      div.style.opacity = String(0.35 + (i / gHistory.length) * 0.65);
+      var e1 = document.createElement('div');
+      e1.className = 'hist-expr';
+      e1.textContent = prettyExpr(gHistory[i].expr);
+      var e2 = document.createElement('div');
+      e2.className = 'hist-res';
+      e2.textContent = '= ' + withCommas(gHistory[i].res);
+      div.appendChild(e1);
+      div.appendChild(e2);
+      histEl.appendChild(div);
+    }
+    histEl.scrollTop = histEl.scrollHeight;
+  }
+}
+
+function flash(type) {
+  var md = document.getElementById('mainDisp');
+  var cls = type === 's' ? 'flash-s' : type === 'r' ? 'flash-r' : 'flash-c';
+  md.className = 'main-disp ' + cls;
+  setTimeout(function() { md.className = 'main-disp'; }, 500);
+}
+
+function evalCurrent() {
+  if (gExpr === '') return null;
+  var evalStr = gExpr.replace(/\s+$/, '');
+  var u = unclosed(evalStr);
+  if (u > 0) { for (var i = 0; i < u; i++) evalStr += ')'; }
+  return (u >= 0) ? calcEval(evalStr) : null;
+}
+
+function doMem(cmd) {
+  var cur = evalCurrent();
+  if (cur === null) cur = Number(gDisp) || 0;
+  if (!isFinite(cur)) cur = 0;
+
+  if (cmd === 'MC') { gMemory = 0; flash('c'); }
+  else if (cmd === 'MR') {
+    var ms = fmtNum(gMemory);
+    if (ms === 'Error' || ms === '\u221e' || ms === '-\u221e') { gDisp = 'Error'; render(); return; }
+    var base = (gJustEvaled ? '' : gExpr).replace(/\s+$/, '');
+    var lc = lastCh(base);
+    if ((lc >= '0' && lc <= '9') || lc === ')') base += ' * ';
+    gExpr = base + ms;
+    gDisp = ms;
+    gJustEvaled = false;
+    flash('r');
+  }
+  else if (cmd === 'MA') { gMemory += cur; gJustEvaled = true; flash('s'); }
+  else if (cmd === 'MS') { gMemory -= cur; gJustEvaled = true; flash('s'); }
+  render();
+}
+
+function backspaceExpr(s) {
+  if (!s) return '';
+  var x = s.slice(0, -1).replace(/\s+$/, '');
+  if (/[eE]$/.test(x) || /[eE][+-]$/.test(x)) {
+    x = x.replace(/[eE][+-]?$/, '').replace(/\s+$/, '').replace(/\.$/, '');
+  }
+  if (/\s\.$/.test(x)) x = x.replace(/\.$/, '');
+  return x;
+}
+
+function doBtn(cmd) {
+  // 数字・小数点
+  if ((cmd >= '0' && cmd <= '9') || cmd === 'DOT') {
+    var ch = (cmd === 'DOT') ? '.' : cmd;
+    var base = gExpr;
+    if (gJustEvaled) { base = ''; gJustEvaled = false; }
+
+    // Fix 1: 先頭ゼロの連打防止（演算子の後でなく、先頭が '0' のみの場合）
+    if (ch !== '.') {
+      // (unused variable removed)
+      // 末尾の数値トークンが '0' 単独なら置き換え（ただし小数点なし）
+      var trailZero = base.match(/(^|[ +\-*\/(])0$/);
+      if (trailZero && ch !== '0') {
+        base = base.slice(0, -1);
+      } else if (trailZero && ch === '0') {
+        render(); return; // 0の連打は無視
+      }
+    }
+
+    // Fix 5: 演算子直後の '.' → '0.' に変換
+    if (ch === '.') {
+      var lc = lastCh(base.replace(/\s+$/, ''));
+      if (isOpAscii(lc) || lc === '(' || base === '') {
+        base = base + '0';
+      }
+      // 直近の数値にすでに '.' があれば無視
+      var m = base.match(/[\d.]*$/);
+      if (m && m[0].indexOf('.') >= 0) { render(); return; }
+    }
+
+    gExpr = base + ch;
+    var m2 = gExpr.match(/[\d.]+$/);
+    gDisp = m2 ? m2[0] : ch;
+    gLastOp = null;
+  }
+
+  // 演算子
+  else if (cmd === 'ADD' || cmd === 'SUB' || cmd === 'MUL' || cmd === 'DIV') {
+    var opChar = (cmd === 'ADD') ? '+' : (cmd === 'SUB') ? '-' : (cmd === 'MUL') ? '*' : '/';
+    gJustEvaled = false;
+    gLastOp = null;
+    var base = gExpr.replace(/\s+$/, '');
+    if (base.length > 0 && isOpAscii(lastCh(base))) base = base.slice(0, -1).replace(/\s+$/, '');
+    if (lastCh(base) === '(') { render(); return; }
+    if (base === '') base = '0';
+    gExpr = base + ' ' + opChar + ' ';
+    gDisp = (opChar === '*') ? '\u00d7' : (opChar === '/') ? '\u00f7' : (opChar === '-') ? '\u2212' : '+';
+  }
+
+  // AC
+  else if (cmd === 'AC') {
+    gExpr = ''; gDisp = '0'; gJustEvaled = false; gLastOp = null;
+  }
+
+  // C
+  else if (cmd === 'C') {
+    if (gJustEvaled) { gExpr = ''; gDisp = '0'; gJustEvaled = false; gLastOp = null; }
+    else {
+      var m = gExpr.match(RE_LAST_NUM);
+      if (m) {
+        gExpr = gExpr.slice(0, -m[1].length).replace(/\s+$/, '');
+        gDisp = (gExpr === '') ? '0' : '';
+      } else {
+        gDisp = (gExpr === '') ? '0' : '';
+      }
+    }
+  }
+
+  // BS
+  else if (cmd === 'BS') {
+    if (gJustEvaled) { gExpr = ''; gDisp = '0'; gJustEvaled = false; gLastOp = null; }
+    else {
+      gExpr = backspaceExpr(gExpr);
+      var m = gExpr.match(RE_LAST_NUM);
+      if (m) gDisp = m[1];
+      else if (gExpr === '') gDisp = '0';
+      else {
+        var lc = lastCh(gExpr);
+        gDisp = (lc === '*') ? '\u00d7' : (lc === '/') ? '\u00f7' : (lc === '-') ? '\u2212' : '';
+      }
+    }
+  }
+
+  // 左括弧
+  else if (cmd === 'LP') {
+    var base = gJustEvaled ? '' : gExpr;
+    gJustEvaled = false; gLastOp = null;
+    base = base.replace(/\s+$/, '');
+    var lc = lastCh(base);
+    if ((lc >= '0' && lc <= '9') || lc === ')') base += ' * ';
+    gExpr = base + '(';
+    gDisp = '(';
+  }
+
+  // 右括弧
+  else if (cmd === 'RP') {
+    gJustEvaled = false;
+    var u = unclosed(gExpr);
+    if (u <= 0) { render(); return; }
+    var t = gExpr.replace(/\s+$/, '');
+    var lc = lastCh(t);
+    if (isOpAscii(lc) || lc === '(') { render(); return; }
+    gExpr = t + ')';
+    var v = calcEval(gExpr);
+    gDisp = (v !== null) ? fmtNum(v) : ')';
+  }
+
+  // +/-
+  else if (cmd === 'PM') {
+    gJustEvaled = false;
+    var m = gExpr.match(RE_LAST_NUM);
+    if (!m) { render(); return; }
+    var v = -Number(m[1]);
+    var fv = fmtNum(v);
+    if (fv === 'Error' || fv === '\u221e' || fv === '-\u221e') { gDisp = 'Error'; render(); return; }
+    gExpr = gExpr.slice(0, -m[1].length) + fv;
+    gDisp = fv;
+  }
+
+  // % Fix 1: コンテキスト依存の % 処理
+  // "100 + 5 %" → 100 + (100 * 0.05) = 105
+  // "100 * 5 %" → 100 * 0.05 = 5
+  // 単独 "5 %" → 0.05
+  else if (cmd === 'PCT') {
+    gJustEvaled = false;
+    var m = gExpr.match(RE_LAST_NUM);
+    if (!m) { render(); return; }
+    var rawNum = Number(m[1]);
+    var before = gExpr.slice(0, -m[1].length).replace(/\s+$/, '');
+    var lc = lastCh(before);
+    var pctVal;
+    if ((lc === '+' || lc === '-') && before.length > 1) {
+      // 前の式を評価してベース値を取得
+      var baseExpr = before.slice(0, -1).replace(/\s+$/, '');
+      var baseVal = calcEval(baseExpr);
+      pctVal = (baseVal !== null) ? baseVal * rawNum / 100 : rawNum / 100;
+    } else {
+      pctVal = rawNum / 100;
+    }
+    var fv = fmtNum(pctVal);
+    if (fv === 'Error' || fv === '\u221e' || fv === '-\u221e') { gDisp = 'Error'; render(); return; }
+    gExpr = gExpr.slice(0, -m[1].length) + fv;
+    gDisp = fv;
+  }
+
+  // イコール（= 連打対応）
+  else if (cmd === 'EQ') {
+    // Fix 2: = 連打 — 直前の演算を繰り返す
+    if (gJustEvaled && gLastOp !== null) {
+      var repeated = calcEval(fmtNum(gLastOp.left) + ' ' + gLastOp.op + ' ' + fmtNum(gLastOp.right));
+      if (repeated === null) { gDisp = 'Error'; render(); return; }
+      var rs2 = fmtNum(repeated);
+      gLastOp = { op: gLastOp.op, right: gLastOp.right, left: repeated };
+      gHistory.push({ expr: fmtNum(gLastOp.left - (gLastOp.op === '+' ? gLastOp.right : -gLastOp.right)) + ' ' + gLastOp.op + ' ' + fmtNum(gLastOp.right), res: rs2 });
+      if (gHistory.length > 5) gHistory.shift();
+      gExpr = rs2; gDisp = rs2;
+      render(); return;
+    }
+
+    if (gExpr === '') { render(); return; }
+    var evalStr = gExpr.replace(/\s+$/, '');
+    var u = unclosed(evalStr);
+    if (u < 0) { gDisp = 'Error'; render(); return; }
+    for (var i = 0; i < u; i++) evalStr += ')';
+
+    // Fix 3: ゼロ除算を Error として表示
+    var result = calcEval(evalStr);
+    if (result === null) { gDisp = 'Error'; gJustEvaled = true; render(); return; }
+
+    var rs = fmtNum(result);
+
+    // = 連打用に最後の二項演算を記憶
+    var opMatch = evalStr.match(/^(.+)\s([+\-*\/])\s([^+\-*\/]+)$/);
+    if (opMatch) {
+      var leftVal = calcEval(opMatch[1]);
+      var rightVal = Number(opMatch[3]);
+      if (leftVal !== null && !isNaN(rightVal)) {
+        gLastOp = { op: opMatch[2], left: result, right: rightVal };
+      }
+    }
+
+    gHistory.push({ expr: evalStr, res: rs });
+    if (gHistory.length > 5) gHistory.shift();
+    gExpr = rs; gDisp = rs; gJustEvaled = true;
+  }
+
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
