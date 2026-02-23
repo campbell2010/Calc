@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="電卓" />
+  <meta name="theme-color" content="#0f0c29" />
+  <title>電卓</title>
+
+  <!-- PWA マニフェスト (インライン) -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Apple Touch Icon (SVG → base64 で埋め込み) -->
+  <link rel="apple-touch-icon" href="icon.png" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0f0c29; }
+    body {
+      font-family: -apple-system, 'SF Pro Display', sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #root { width: 100%; display: flex; align-items: center; justify-content: center; }
+
+    /* ===== 電卓本体 ===== */
+    .calc {
+      width: min(96vw, 400px);
+      border-radius: 28px;
+      background: rgba(0,0,0,0.62);
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 24px 70px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1);
+      padding: 16px 14px 14px;
+    }
+
+    /* ===== 上部表示エリア ===== */
+    .display-area {
+      background: rgba(255,255,255,0.03);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.05);
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .indicators {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px 0;
+      min-height: 20px;
+    }
+    .mem-indicator {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .mem-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(80,200,255,0.95);
+      box-shadow: 0 0 8px rgba(80,200,255,0.9);
+      display: none;
+    }
+    .mem-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 1px;
+      color: rgba(80,200,255,0.95); display: none;
+    }
+    .mem-val {
+      font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 300; display: none;
+    }
+    .paren-indicator {
+      font-size: 11px; color: rgba(180,210,255,0.8); letter-spacing: 1px;
+      min-width: 20px; text-align: right;
+    }
+
+    /* 履歴 */
+    .history {
+      height: 110px;
+      overflow-y: auto;
+      padding: 4px 12px 2px;
+      scrollbar-width: none;
+    }
+    .history::-webkit-scrollbar { display: none; }
+    .history-empty {
+      height: 100%;
+      display: flex; align-items: center; justify-content: flex-end;
+      color: rgba(255,255,255,0.12); font-size: 12px; font-style: italic;
+    }
+    .history-item { text-align: right; margin-bottom: 6px; }
+    .history-expr { font-size: 11px; color: rgba(255,255,255,0.45); margin-bottom: 1px; word-break: break-all; }
+    .history-result { font-size: 18px; color: #fff; font-weight: 200; letter-spacing: -0.5px; }
+
+    .divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 12px; }
+
+    .current-expr {
+      text-align: right;
+      color: rgba(255,255,255,0.38);
+      font-size: 12px;
+      min-height: 20px;
+      padding: 4px 12px 0;
+      letter-spacing: 0.3px;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+    .main-display {
+      text-align: right;
+      color: #fff;
+      font-weight: 200;
+      letter-spacing: -2px;
+      padding: 2px 12px 14px;
+      line-height: 1.1;
+      word-break: break-all;
+      transition: background 0.15s ease;
+    }
+    .flash-store { background: rgba(80,220,140,0.25); }
+    .flash-recall { background: rgba(80,160,255,0.25); }
+    .flash-clear  { background: rgba(255,90,90,0.25); }
+
+    /* ===== ボタン共通 ===== */
+    button {
+      border: none; outline: none; cursor: pointer;
+      border-radius: 999px;
+      font-family: inherit;
+      transition: transform 0.08s ease, opacity 0.08s ease, background 0.1s ease;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    button:active { transform: scale(0.92); opacity: 0.8; }
+
+    /* ===== メモリーボタン行 ===== */
+    .mem-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .mem-btn {
+      height: 38px;
+      background: rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.55);
+      font-size: 12px; font-weight: 500; letter-spacing: 0.5px;
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+    .mem-btn.active-recall { background: rgba(80,160,255,0.18); color: rgba(130,195,255,1); }
+    .mem-btn.active-clear  { background: rgba(255,70,70,0.15);  color: rgba(255,130,130,1); }
+
+    /* ===== メインボタングリッド ===== */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 7px;
+    }
+    .btn {
+      height: 58px;
+      font-size: 20px; font-weight: 300;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+    }
+    .btn-op  { background: rgba(255,149,0,0.85); font-size: 22px; box-shadow: 0 3px 14px rgba(255,149,0,0.3); }
+    .btn-eq  { background: rgba(255,149,0,0.85); font-size: 24px; box-shadow: 0 3px 14px rgba(255,149,0,0.3); grid-column: span 3; }
+    .btn-ac  { background: rgba(255,65,65,0.22); color: rgba(255,120,120,1); font-size: 13px; font-weight: 600; }
+    .btn-c   { background: rgba(255,190,60,0.2); color: rgba(255,210,100,1); font-size: 13px; font-weight: 600; }
+    .btn-bs  { background: rgba(180,120,255,0.18); color: rgba(200,160,255,1); font-size: 17px; }
+    .btn-par { background: rgba(255,255,255,0.08); color: rgba(180,210,255,0.9); font-size: 20px; font-weight: 400; }
+    .btn-fn  { background: rgba(255,255,255,0.14); font-size: 13px; font-weight: 500; }
+  </style>
+</head>
+<body>
+<div id="root">
+  <div class="calc">
+    <!-- 表示エリア -->
+    <div class="display-area">
+      <div class="indicators">
+        <div class="mem-indicator" id="memIndicator">
+          <span class="mem-dot" id="memDot"></span>
+          <span class="mem-label" id="memLabel">M</span>
+          <span class="mem-val" id="memVal"></span>
+        </div>
+        <div class="paren-indicator" id="parenInd"></div>
+      </div>
+      <div class="history" id="history">
+        <div class="history-empty" id="historyEmpty">履歴なし</div>
+      </div>
+      <div class="divider"></div>
+      <div class="current-expr" id="currentExpr">&nbsp;</div>
+      <div class="main-display" id="mainDisplay" style="font-size:56px">0</div>
+    </div>
+
+    <!-- メモリー行 -->
+    <div class="mem-row">
+      <button class="mem-btn" id="btnMC"  onclick="handleMem('MC')">MC</button>
+      <button class="mem-btn" id="btnMR"  onclick="handleMem('MR')">MR</button>
+      <button class="mem-btn" id="btnMsub" onclick="handleMem('M−')">M−</button>
+      <button class="mem-btn" id="btnMadd" onclick="handleMem('M+')">M+</button>
+    </div>
+
+    <!-- メインボタン -->
+    <div class="btn-grid">
+      <!-- 行1 -->
+      <button class="btn btn-ac"  onclick="handleBtn('AC','allclear')">AC</button>
+      <button class="btn btn-c"   onclick="handleBtn('C','clear')">C</button>
+      <button class="btn btn-par" onclick="handleBtn('(','paren')">(</button>
+      <button class="btn btn-par" onclick="handleBtn(')','paren')">)</button>
+      <button class="btn btn-bs"  onclick="handleBtn('⌫','backspace')">⌫</button>
+      <!-- 行2 -->
+      <button class="btn" onclick="handleBtn('7','digit')">7</button>
+      <button class="btn" onclick="handleBtn('8','digit')">8</button>
+      <button class="btn" onclick="handleBtn('9','digit')">9</button>
+      <button class="btn btn-fn"  onclick="handleBtn('+/-','func')">+/-</button>
+      <button class="btn btn-fn"  onclick="handleBtn('%','func')">%</button>
+      <!-- 行3 -->
+      <button class="btn" onclick="handleBtn('4','digit')">4</button>
+      <button class="btn" onclick="handleBtn('5','digit')">5</button>
+      <button class="btn" onclick="handleBtn('6','digit')">6</button>
+      <button class="btn btn-op"  onclick="handleBtn('×','op')">×</button>
+      <button class="btn btn-op"  onclick="handleBtn('÷','op')">÷</button>
+      <!-- 行4 -->
+      <button class="btn" onclick="handleBtn('1','digit')">1</button>
+      <button class="btn" onclick="handleBtn('2','digit')">2</button>
+      <button class="btn" onclick="handleBtn('3','digit')">3</button>
+      <button class="btn btn-op"  onclick="handleBtn('+','op')">+</button>
+      <button class="btn btn-op"  onclick="handleBtn('−','op')">−</button>
+      <!-- 行5 -->
+      <button class="btn" onclick="handleBtn('0','digit')">0</button>
+      <button class="btn" onclick="handleBtn('.','digit')">.</button>
+      <button class="btn btn-eq"  onclick="handleBtn('=','eq')">=</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 状態 =====
+let expr = "";
+let display = "0";
+let justEvaled = false;
+let history = [];
+let memory = 0;
+
+// ===== 数式評価 =====
+function tokenize(s) {
+  const tokens = []; let i = 0;
+  while (i < s.length) {
+    if (s[i] === " ") { i++; continue; }
+    if (/\d/.test(s[i]) || (s[i] === "." && /\d/.test(s[i+1] ?? ""))) {
+      let n = "";
+      while (i < s.length && (/\d/.test(s[i]) || s[i] === ".")) n += s[i++];
+      tokens.push({ t: "num", v: parseFloat(n) });
+    } else if ("+-×÷*/".includes(s[i])) {
+      tokens.push({ t: "op", v: s[i] }); i++;
+    } else if (s[i] === "(") { tokens.push({ t: "lp" }); i++; }
+    else if (s[i] === ")") { tokens.push({ t: "rp" }); i++; }
+    else i++;
+  }
+  return tokens;
+}
+function parseExpr(tokens) {
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const consume = () => tokens[pos++];
+  const PREC = { "+":1,"-":1,"×":2,"*":2,"÷":2,"/":2 };
+  function applyOp(op,a,b) {
+    if(op==="+") return a+b; if(op==="-") return a-b;
+    if(op==="×"||op==="*") return a*b;
+    if(op==="÷"||op==="/") return b!==0?a/b:NaN;
+    return b;
+  }
+  function binary(minP) {
+    let left = unary();
+    while (peek() && peek().t==="op" && (PREC[peek().v]??0)>=minP) {
+      const op = consume().v;
+      left = applyOp(op, left, binary((PREC[op]??0)+1));
+    }
+    return left;
+  }
+  function unary() {
+    if (peek()?.t==="op" && peek()?.v==="-") { consume(); return -primary(); }
+    if (peek()?.t==="op" && peek()?.v==="+") { consume(); return primary(); }
+    return primary();
+  }
+  function primary() {
+    const t = peek();
+    if (!t) return 0;
+    if (t.t==="num") { consume(); return t.v; }
+    if (t.t==="lp") {
+      consume();
+      const v = binary(0);
+      if (peek()?.t==="rp") consume();
+      return v;
+    }
+    return 0;
+  }
+  return binary(0);
+}
+function evaluate(s) {
+  try {
+    const tokens = tokenize(s);
+    if (!tokens.length) return null;
+    const r = parseExpr(tokens);
+    return isFinite(r) ? r : null;
+  } catch { return null; }
+}
+
+// ===== フォーマット =====
+function fmt(num) {
+  if (num===null||num===undefined||isNaN(num)) return "Error";
+  if (!isFinite(num)) return num>0?"∞":"-∞";
+  const abs = Math.abs(num);
+  const intD = abs<1 ? 1 : Math.floor(Math.log10(abs))+1;
+  if (intD>15) return num.toExponential(4);
+  if (Number.isInteger(num)) return String(num);
+  const dp = Math.max(0, 14-intD);
+  return num.toFixed(dp).replace(/\.?0+$/,"");
+}
+
+function countUnclosed(s) {
+  let c=0;
+  for (const ch of s) { if(ch==="(")c++; if(ch===")")c--; }
+  return Math.max(0,c);
+}
+const isOpChar = c => ["+","−","×","÷"].includes(c);
+const lastChar = s => s.trimEnd().slice(-1);
+
+// ===== DOM更新 =====
+function render() {
+  // ディスプレイ
+  const dText = display || (expr===""?"0":"");
+  const dLen = dText.length;
+  const fs = dLen>12?20:dLen>9?28:dLen>6?40:56;
+  const md = document.getElementById("mainDisplay");
+  md.textContent = dText;
+  md.style.fontSize = fs+"px";
+
+  // 進行中の式
+  const ce = document.getElementById("currentExpr");
+  ce.textContent = expr || "\u00a0";
+
+  // 括弧インジケーター
+  const unc = countUnclosed(expr);
+  document.getElementById("parenInd").textContent =
+    unc>0 ? "(".repeat(Math.min(unc,4))+(unc>4?`+${unc-4}`:"") : "";
+
+  // メモリーインジケーター
+  const show = memory!==0;
+  document.getElementById("memDot").style.display   = show?"inline-block":"none";
+  document.getElementById("memLabel").style.display = show?"inline":"none";
+  document.getElementById("memVal").style.display   = show?"inline":"none";
+  if (show) document.getElementById("memVal").textContent = "= "+fmt(memory);
+
+  // メモリーボタン
+  const mr = document.getElementById("btnMR");
+  const mc = document.getElementById("btnMC");
+  mr.className = "mem-btn" + (memory!==0?" active-recall":"");
+  mc.className = "mem-btn" + (memory!==0?" active-clear":"");
+
+  // 履歴
+  const histEl = document.getElementById("history");
+  const emptyEl = document.getElementById("historyEmpty");
+  if (history.length===0) {
+    emptyEl.style.display="flex";
+    // 古いアイテムを消す
+    [...histEl.querySelectorAll(".history-item")].forEach(e=>e.remove());
+  } else {
+    emptyEl.style.display="none";
+    [...histEl.querySelectorAll(".history-item")].forEach(e=>e.remove());
+    history.forEach((item,i) => {
+      const div = document.createElement("div");
+      div.className="history-item";
+      div.style.opacity = 0.35+(i/history.length)*0.65;
+      div.innerHTML = `<div class="history-expr">${item.expr}</div><div class="history-result">= ${item.result}</div>`;
+      histEl.appendChild(div);
+    });
+    histEl.scrollTop = histEl.scrollHeight;
+  }
+}
+
+// ===== フラッシュ =====
+function flash(type) {
+  const md = document.getElementById("mainDisplay");
+  md.classList.remove("flash-store","flash-recall","flash-clear");
+  void md.offsetWidth; // reflow
+  md.classList.add("flash-"+type);
+  setTimeout(()=>md.classList.remove("flash-"+type), 500);
+}
+
+// ===== メモリー処理 =====
+function handleMem(val) {
+  const cur = parseFloat(display)||0;
+  if (val==="MC") { memory=0; flash("clear"); }
+  else if (val==="MR") {
+    const ms=fmt(memory);
+    expr=(justEvaled?"":expr)+ms;
+    display=ms; justEvaled=false;
+    flash("recall");
+  }
+  else if (val==="M+") { memory+=cur; flash("store"); }
+  else if (val==="M−") { memory-=cur; flash("store"); }
+  render();
+}
+
+// ===== メインボタン処理 =====
+function handleBtn(label, type) {
+  if (type==="allclear") {
+    expr=""; display="0"; justEvaled=false;
+  }
+  else if (type==="clear") {
+    if (justEvaled) { expr=""; display="0"; justEvaled=false; }
+    else {
+      const trimmed = expr.replace(/[\d.]+$/,"")||"";
+      expr=trimmed; display=trimmed===""?"0":"";
+    }
+  }
+  else if (type==="backspace") {
+    if (justEvaled) { expr=""; display="0"; justEvaled=false; }
+    else {
+      const next=expr.slice(0,-1);
+      expr=next;
+      const m=next.match(/([\d.]+)$/);
+      display=m?m[1]:next===""?"0":"";
+    }
+  }
+  else if (type==="digit") {
+    let base=expr;
+    if (justEvaled) { base=""; justEvaled=false; }
+    if (label===".") {
+      const m=base.match(/([\d.]*)$/);
+      if (m&&m[1].includes(".")) { render(); return; }
+    }
+    const next=base+label;
+    expr=next;
+    const m2=next.match(/([\d.]+)$/);
+    display=m2?m2[1]:label;
+  }
+  else if (type==="op") {
+    let base=expr; justEvaled=false;
+    if (base.length>0&&isOpChar(lastChar(base)))
+      base=base.trimEnd().slice(0,-1).trimEnd();
+    if (lastChar(base)==="(") { render(); return; }
+    if (base==="") base="0";
+    expr=base+" "+label+" "; display=label;
+  }
+  else if (type==="paren") {
+    let base=justEvaled?"":expr; justEvaled=false;
+    if (label==="(") {
+      const lc=lastChar(base);
+      if (/[\d)]/.test(lc)) base+=" × ";
+      expr=base+"("; display="(";
+    } else {
+      if (countUnclosed(base)<=0) { render(); return; }
+      const lc=lastChar(base);
+      if (isOpChar(lc)||lc==="(") { render(); return; }
+      const next=base+")";
+      expr=next;
+      const v=evaluate(next);
+      display=v!==null?fmt(v):")";
+    }
+  }
+  else if (type==="func") {
+    justEvaled=false;
+    if (label==="%") {
+      const m=expr.match(/([\d.]+)$/);
+      if (!m) { render(); return; }
+      const v=parseFloat(m[1])/100;
+      expr=expr.slice(0,-m[1].length)+fmt(v); display=fmt(v);
+    } else if (label==="+/-") {
+      const m=expr.match(/([\d.]+)$/);
+      if (!m) { render(); return; }
+      const v=-parseFloat(m[1]); const fv=fmt(v);
+      expr=expr.slice(0,-m[1].length)+fv; display=fv;
+    }
+  }
+  else if (type==="eq") {
+    if (expr==="") { render(); return; }
+    let evalExpr=expr.trimEnd();
+    const unc=countUnclosed(evalExpr);
+    for(let i=0;i<unc;i++) evalExpr+=")";
+    const result=evaluate(evalExpr);
+    if (result===null) { display="Error"; render(); return; }
+    const rs=fmt(result);
+    history=[...history,{expr:evalExpr,result:rs}].slice(-5);
+    expr=rs; display=rs; justEvaled=true;
+  }
+  render();
+}
+
+// 初期描画
+render();
+</script>
+</body>
+</html>
